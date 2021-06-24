@@ -1,58 +1,47 @@
 package main
 
 import (
-        "fmt"
-        "net"
-        "io"
-        "log"
+	"fmt"
+	"log"
+	"net"
 )
 
 func main() {
-	listener, error := net.Listen("tcp", "0.0.0.0:8089")
+	tcpAddr, error := net.ResolveTCPAddr("tcp", "0.0.0.0:8089")
+	if error != nil {
+		log.Println("ResolveTCPAddr", error)
+		return
+	}
 
-        if error != nil {
-                log.Printf("Listen", error)
-                return
-        }
+	listener, error := net.ListenTCP("tcp", tcpAddr)
 
-        fmt.Printf("Server running at 0.0.0.0:8089\n\n")
-        
-        defer connection.Close();
+	if error != nil {
+		log.Println("ListenTCP", error)
+		return
+	}
+
+	fmt.Printf("Server running at 0.0.0.0:8089\n\n")
+
+	defer listener.Close()
 
 	for {
-		connection, error := listener.Accept()
+		connection, error := listener.AcceptTCP()
 
-                if error != nil {
-                        log.Printf("Accept", error)
-                        continue
-                }
+		if error != nil {
+			log.Println("AcceptTCP", error)
+			return
+		}
 
-                go func(connection net.Conn) {
+		go func(connection net.Conn) {
+			defer connection.Close()
 
-                        for {
-                                buf := make([]byte, 4096)
-                                n, error := connection.Read(buf)
+			buf := make([]byte, 4096)
+			connection.Read(buf)
 
-                                if (error != nil) {
-                                        if error == io.EOF {
-                                                log.Printf("io.EOF", error)
-                                                continue
-                                        } else {
-                                                log.Printf("Read", error)
-                                                continue
-                                        }
-                                }
-
-                                fmt.Printf("Client> %s \n", string(buf[:n]))
-
-                                n, error = connection.Write([]byte(string(buf[:n])))
-
-                                if error != nil {
-                                        log.Printf("Write", error)
-                                        continue
-                                }
-
-                        }
-                }(connection)
+			connection.Write([]byte("HTTP/1.1 200 OK\r\n"))
+			connection.Write([]byte("Content-Type: text/plain\r\n"))
+			connection.Write([]byte("\r\n"))
+			connection.Write([]byte("Hello, world"))
+		}(connection)
 	}
 }
